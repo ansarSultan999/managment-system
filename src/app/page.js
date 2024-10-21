@@ -6,7 +6,7 @@ export default function Home() {
        <h1 className="text-5xl font-bold">Team Managment</h1>
       <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
         <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <Link href="/Dashboard"
+          <Link href="/SignUp"
            className="dark:invert bg-yellow-200 p-4 rounded-md text-2xl "
           >
             Sign Up Page
