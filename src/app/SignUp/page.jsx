@@ -37,8 +37,8 @@ export default function SignUp() {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <Card>
+    <div className="flex justify-center items-center h-screen bg-gray-100 ">
+      <Card className="w-1/3">
         <CardHeader>
           <CardTitle>Sign Up</CardTitle>
         </CardHeader>

@@ -97,7 +97,6 @@ export default function FixedTeamTaskManagement() {
     return () => unsubscribe();
   }, []);
 
-
   // Fetch teams for the current user
   const fetchUserTeams = async (userId) => {
     const q = query(collection(db, "teams"), where("members", "array-contains", userId));
@@ -108,6 +107,8 @@ export default function FixedTeamTaskManagement() {
       }));
       if (teamList.length > 0) {
         setCurrentTeam(teamList[0]); // Set the first team as current (or handle accordingly)
+      } else {
+        setCurrentTeam(null);
       }
     });
     return () => unsubscribe();
@@ -131,11 +132,11 @@ export default function FixedTeamTaskManagement() {
 
       // Update user team data for selected members
       const updateMembers = async (memberId) => {
-        await setDoc(doc(db, "users", memberId), { team: docRef.id }, { merge: true });
+        await setDoc(doc(db, "users", memberId), { teams: docRef.id }, { merge: true });
       };
 
       await Promise.all(selectedTeamMembers.map(updateMembers));
-      await setDoc(doc(db, "users", currentUser.id), { team: docRef.id }, { merge: true });
+      await setDoc(doc(db, "users", currentUser.id), { teams: docRef.id }, { merge: true });
 
       setNewTeamName("");
       setSelectedTeamMembers([]);
@@ -167,10 +168,10 @@ export default function FixedTeamTaskManagement() {
     }
   };
 
-//show html response  
-const getSafeHtml = (html) => {
-  return DOMPurify.sanitize(html); // Sanitize the HTML
-};
+  // Show HTML response  
+  const getSafeHtml = (html) => {
+    return DOMPurify.sanitize(html); // Sanitize the HTML
+  };
 
   // Toggle task assignment
   const toggleTaskAssignment = async (taskId, userId) => {
@@ -241,133 +242,143 @@ const getSafeHtml = (html) => {
               <TabsTrigger value="tasks">Tasks</TabsTrigger>
             </TabsList>
             <TabsContent value="teams">
-              <h2 className="text-xl font-semibold mb-4">Current Team: {currentTeam.name}</h2>
-              <h3 className="text-lg mb-2">Members:</h3>
-              <ul>
-                {currentTeam.members.map((memberId) => {
-                  const member = users.find((user) => user.id === memberId);
-                  return (
-                    <li key={memberId} className="flex items-center py-2">
+              <div className="mt-4 flex flex-wrap">
+                <h3 className="font-semibold w-full">Team Members:</h3>
+                <div className="flex flex-col flex-wrap space-x-4">
+                  {availableTeamMembers.map((member) => (
+                    <div key={member.id} className="flex items-center space-x-2 ml-0 mb-5">
                       <Avatar>
-                        <AvatarImage src={`https://api.dicebear.com/6.x/initials/svg?seed=${member.name}`} />
+                        <AvatarImage
+                          src={member.photoURL || `https://api.dicebear.com/6.x/initials/svg?seed=${member.name}`}
+                          alt={member.name}
+                        />
                         <AvatarFallback>{member.name.charAt(0)}</AvatarFallback>
                       </Avatar>
-                      <span className="ml-2">{member.name}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-              <Button onClick={() => setShowAddTaskDialog(true)} className="mt-4">Add Task</Button>
-              <Input
-                placeholder="Search Tasks..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="mt-4"
-              />
+                      <span>{member.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </TabsContent>
             <TabsContent value="tasks">
-              <ul>
-                {filteredTasks.map((task) => (
-                  <li key={task.id} className="flex justify-between items-center border-b py-2">
-                    <div>
-                      <h3 className="font-bold">{task.title}</h3>
-                      <div
-                        className="description"
-                        dangerouslySetInnerHTML={{ __html: getSafeHtml(task.description) }} 
-                      />
+              <div className="flex justify-between mb-4">
+                <Input
+                  type="text"
+                  placeholder="Search tasks..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                <Button onClick={() => setShowAddTaskDialog(true)}>Add Task</Button>
+              </div>
+              {filteredTasks.map((task) => (
+                <Card key={task.id} className="mb-4">
+                  <CardHeader>
+                    <CardTitle>{task.title}</CardTitle>
+                    <p>{getSafeHtml(task.description)}</p>
+                    <div className="flex space-x-2 mt-2">
+                      {task.assignees.map((assigneeId) => {
+                        const assignee = users.find((user) => user.id === assigneeId);
+                        return (
+                          <Avatar key={assigneeId}>
+                            <AvatarImage
+                              src={assignee?.photoURL || `https://api.dicebear.com/6.x/initials/svg?seed=${assignee?.name}`}
+                              alt={assignee?.name}
+                            />
+                            <AvatarFallback>{assignee?.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                        );
+                      })}
                     </div>
-                    <div className="flex items-center space-x-4">
-                      <Button onClick={() => updateTaskStatus(task.id)}>
-                        {task.status === "todo" ? "Mark as Done" : "Undo"}
-                      </Button>
-                      <div>
-                        {task.assignees.map((assigneeId) => {
-                          const assignee = users.find(user => user.id === assigneeId); // Find user by ID
-                          return assignee ? (
-                            <ul key={assignee.id} className="text-sm"><li>{assignee.name}</li></ul> // Display user name
-                          ) : null; // Return null if the user is not found
-                        })}
-                      </div>
-
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                  </CardHeader>
+                  <CardContent>
+                    <Button onClick={() => updateTaskStatus(task.id)}>
+                      {task.status === "todo" ? "Mark as Done" : "Reopen"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
             </TabsContent>
           </Tabs>
 
-          {/* Add Task Dialog */}
           <Dialog open={showAddTaskDialog} onOpenChange={setShowAddTaskDialog}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add New Task</DialogTitle>
               </DialogHeader>
-              <Input
-                placeholder="Task Title"
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                className="mb-4"
-              />
-              <Label>Description</Label>
-              <ReactQuill
-                value={newTaskDescription}
-                onChange={setNewTaskDescription}
-                className="mb-4"
-              />
-              <Label>Assign Members</Label>
-              <ul>
-                {availableTeamMembers.map((user) => (
-                  <li key={user.id} className="flex items-center">
-                    <Checkbox
-                      checked={assignedMembers.includes(user.id)}
-                      onCheckedChange={(checked) => {
-                        setAssignedMembers((prev) =>
-                          checked ? [...prev, user.id] : prev.filter((id) => id !== user.id)
-                        );
-                      }}
-                    />
-                    <span className="ml-2">{user.name}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="mb-4">
+                <Label>Title</Label>
+                <Input
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                />
+              </div>
+              <div className="mb-4">
+                <Label>Description</Label>
+                <ReactQuill
+                  value={newTaskDescription}
+                  onChange={(value) => setNewTaskDescription(value)}
+                />
+              </div>
+              <div className="mb-4">
+                <Label>Assign Members:</Label>
+                <div className="flex flex-wrap space-x-4">
+                  {availableTeamMembers.map((member) => (
+                    <div key={member.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={assignedMembers.includes(member.id)}
+                        onChange={() => {
+                          if (assignedMembers.includes(member.id)) {
+                            setAssignedMembers(assignedMembers.filter((id) => id !== member.id));
+                          } else {
+                            setAssignedMembers([...assignedMembers, member.id]);
+                          }
+                        }}
+                      />
+                      <span>{member.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
               <DialogFooter>
                 <Button onClick={addTask}>Create Task</Button>
+                <Button variant="outline" onClick={() => setShowAddTaskDialog(false)}>Cancel</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          {/* Create Team Dialog */}
           <Dialog open={showCreateTeam} onOpenChange={setShowCreateTeam}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create New Team</DialogTitle>
               </DialogHeader>
-              <Input
-                placeholder="Team Name"
-                value={newTeamName}
-                onChange={(e) => setNewTeamName(e.target.value)}
-                className="mb-4"
-              />
-              <Label>Select Members</Label>
-              <ul>
-                {users
-                  .filter(user => user.id !== currentUser?.id) // Exclude the current user
-                  .map(user => (
-                    <li key={user.id} className="flex items-center">
-                      <Checkbox
-                        checked={selectedTeamMembers.includes(user.id)}
-                        onCheckedChange={(checked) => {
-                          setSelectedTeamMembers((prev) =>
-                            checked ? [...prev, user.id] : prev.filter((id) => id !== user.id)
-                          );
-                        }}
-                      />
-                      <span className="ml-2">{user.name}</span>
-                    </li>
-                  ))}
-              </ul>
+              <div className="mb-4">
+                <Label>Team Name</Label>
+                <Input
+                  value={newTeamName}
+                  onChange={(e) => setNewTeamName(e.target.value)}
+                />
+              </div>
+              <Label>Select Members:</Label>
+              <div className="flex flex-wrap space-x-4">
+                {users.map((user) => (
+                  <div key={user.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      checked={selectedTeamMembers.includes(user.id)}
+                      onChange={() => {
+                        if (selectedTeamMembers.includes(user.id)) {
+                          setSelectedTeamMembers(selectedTeamMembers.filter((id) => id !== user.id));
+                        } else {
+                          setSelectedTeamMembers([...selectedTeamMembers, user.id]);
+                        }
+                      }}
+                    />
+                    <span>{user.name}</span>
+                  </div>
+                ))}
+              </div>
               <DialogFooter>
                 <Button onClick={createTeam}>Create Team</Button>
+                <Button variant="outline" onClick={() => setShowCreateTeam(false)}>Cancel</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
